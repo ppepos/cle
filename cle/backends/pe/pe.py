@@ -59,6 +59,9 @@ class PE(Backend):
         self.tls_module_id = None
         self.tls_data_pointer = None
 
+        self.supports_nx = self._pe.OPTIONAL_HEADER.DllCharacteristics & 0x100 != 0
+        self.pic = self._pe.OPTIONAL_HEADER.DllCharacteristics & 0x40 != 0
+
         self._exports = {}
         self._ordinal_exports = {}
         self._symbol_cache = self._exports # same thing
@@ -67,10 +70,9 @@ class PE(Backend):
         self.__register_relocs()
         self._register_tls()
         self._register_sections()
+
         self.linking = 'dynamic' if self.deps else 'static'
-
         self.jmprel = self._get_jmprel()
-
         self.memory.add_backer(0, self._pe.get_memory_mapped_image())
 
     _pefile_cache = {}
@@ -103,10 +105,6 @@ class PE(Backend):
         if name.startswith('ordinal.'):
             return self._ordinal_exports.get(int(name.split('.')[1]), None)
         return self._exports.get(name, None)
-
-    @property
-    def supports_nx(self):
-        return self._pe.OPTIONAL_HEADER.DllCharacteristics & 0x100 != 0
 
     #
     # Private methods
@@ -148,13 +146,13 @@ class PE(Backend):
 
     def __register_relocs(self):
         if not hasattr(self._pe, 'DIRECTORY_ENTRY_BASERELOC'):
-            l.warn('No relocations found')
+            if self.pic:
+                l.info('No relocations found in PIC binary')
             return
 
         for base_reloc in self._pe.DIRECTORY_ENTRY_BASERELOC:
             entry_idx = 0
             while entry_idx < len(base_reloc.entries):
-                self.pic = True # no idea how else to do this...
                 reloc_data = base_reloc.entries[entry_idx]
                 if reloc_data.type == pefile.RELOCATION_TYPE['IMAGE_REL_BASED_HIGHADJ']: # special case, occupies 2 entries
                     if entry_idx == len(base_reloc.entries):
@@ -168,6 +166,7 @@ class PE(Backend):
                     reloc = self._make_reloc(addr=reloc_data.rva, reloc_type=reloc_data.type)
 
                 if reloc is not None:
+                    self.pic = True # I've seen binaries with the DYNAMIC_BASE DllCharacteristic unset but have tons of fixup relocations
                     self.relocs.append(reloc)
 
                 entry_idx += 1
