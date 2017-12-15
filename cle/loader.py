@@ -79,7 +79,7 @@ class Loader(object):
     def __init__(self, main_binary, auto_load_libs=True,
                  force_load_libs=(), skip_libs=(),
                  main_opts=None, lib_opts=None, custom_ld_path=(), use_system_libs=True,
-                 ignore_import_version_numbers=True, case_insensitive=False, rebase_granularity=0x1000000,
+                 ignore_import_version_numbers=True, case_insensitive=False, rebase_granularity=0x1,
                  except_missing_libs=False, aslr=False,
                  page_size=0x1, extern_size=0x8000):
         if hasattr(main_binary, 'seek') and hasattr(main_binary, 'read'):
